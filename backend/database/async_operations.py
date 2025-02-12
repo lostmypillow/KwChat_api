@@ -11,27 +11,35 @@ pyodbc.pooling = False
 load_dotenv()
 
 # Database connection URL
+# connection_url = URL.create(
+#     "mssql+aioodbc",
+#     username=settings.DB_USERNAME,
+#     password=settings.DB_PASSWORD,
+#     host=settings.DB_HOST,
+#     database=settings.DB_NAME,
+#     query={
+#         "driver": "ODBC Driver 18 for SQL Server",
+#         "TrustServerCertificate": "yes",
+#     }
+# )
+
 connection_url = URL.create(
-    "mssql+aioodbc",
-    username=settings.DB_USERNAME,
-    password=settings.DB_PASSWORD,
-    host=settings.DB_HOST,
-    database=settings.DB_NAME,
-    query={
-        "driver": "ODBC Driver 18 for SQL Server",
-        "TrustServerCertificate": "yes",
-    }
+    "sqlite+aiosqlite",
+    database=':memory:'
 )
 print(connection_url)
 
 
 # Creating the SQLAlchemy async engine and sessionmaker
-async_engine = create_async_engine(
-    connection_url,
-    pool_size=100,
-    max_overflow=0,
-    pool_pre_ping=True,
-)
+# async_engine = create_async_engine(
+#     connection_url,
+#     pool_size=100,
+#     max_overflow=0,
+#     pool_pre_ping=True,
+# )
+
+async_engine = create_async_engine(connection_url)
+
 
 # Define an async session maker
 create_session = async_sessionmaker(
@@ -72,7 +80,7 @@ async def exec_sql(
     # Reads the SQL statement from file
     with open(file_path, 'r', encoding="utf-8") as file_buffer:
         sql_command = file_buffer.read()
-
+    print(sql_command)
     # Creates an async session using the async sessionmaker
     async with create_session() as session:
 
@@ -96,4 +104,4 @@ async def exec_sql(
         elif mode == "all":
 
             # Returns the results as a list of dicts, or an empty list
-            return result.mappings().all() if result.mappings().all() is not None else []
+            return result.mappings().all()
