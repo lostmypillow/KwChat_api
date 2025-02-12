@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException
 import sqlite3
 from sqlalchemy import text
 from typing import List, Dict, Any
@@ -9,36 +9,40 @@ from database.async_operations import async_engine, exec_sql
 async def lifespan(app: FastAPI):
     """Disposes SQLAlchemy engine
     """
+    await exec_sql('commit', 'schema/users')
+    await exec_sql('commit', 'schema/rooms')
+    await exec_sql('commit', 'schema/room_users')
+    await exec_sql('commit', 'schema/messages')
+    await exec_sql('commit', 'schema/message_recipient')
+    await exec_sql('commit', 'placeholder_users')
     yield
     if async_engine:
         await async_engine.dispose()
+
+
 app = FastAPI(lifespan=lifespan)
 
 # In-memory storage for connected WebSockets
 active_connections: Dict[str, WebSocket] = {}
 
 
-# Custom SQL execution function
-
-@app.post("/chatrooms/")
-async def create_chatroom(user1_id: int, user2_id: int):
-    await exec_sql(
-        'commit',
-        'create_chat',
-        user1_id=user1_id,
-        user2_id=user2_id
-    )
-    return {"message": "Chat created"}
+@app.post('/user/{name}')
+async def create_user(name: str):
+    existing_user = await exec_sql('one', 'user/get_by_name', name=name)
+    if existing_user is None:
+        await exec_sql('commit', 'user/create', name=name, image='/'+name)
+        return await exec_sql('one', 'user/get_by_name', name=name)
+    else:
+        return existing_user
 
 
-@app.get("/chatrooms/{user_id}")
-async def get_chatrooms(user_id: int):
-    return await exec_sql('all', 'get_chats', user_id=user_id)
-
-
-@app.get("/messages/{chat_id}")
-async def get_messages(chat_id: int):
-    return await exec_sql('all', 'get_msgs', chat_id=chat_id)
+@app.get('/users/{name}')
+async def get_all_users(name: str):
+    existing_user = await exec_sql('one', 'user/get_by_name', name=name)
+    if existing_user is None:
+        raise HTTPException(404, 'User not registered!')
+    else:
+        return await exec_sql('all', 'user/get_not_you', name=name)
 
 
 @app.websocket("/ws/{username}")
